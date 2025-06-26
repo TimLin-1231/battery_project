@@ -46,8 +46,15 @@ DEFAULT_COMPRESSION_LEVEL = 5
 DEFAULT_MAX_WORKERS = 4
 
 def ensure_path(path: PathLike) -> Path:
-    """確保輸入是Path物件"""
+    """確保輸入是 ``Path`` 物件。"""
     return Path(path) if not isinstance(path, Path) else path
+
+
+def ensure_dir(dir_path: PathLike) -> Path:
+    """確保目錄存在並返回 ``Path`` 物件。"""
+    path = ensure_path(dir_path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 class FileProcessingPipeline:

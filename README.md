@@ -37,7 +37,7 @@ battery_project/
 ├── trainers/          # Training logic: base_trainer.py, multitemp_trainer.py, gan_trainer.py,
 │                      # pinn_trainer.py, losses.py, callbacks.py, distributed.py
 ├── utils/             # Shared helper utilities
-└── logs/              # Training logs and outputs
+└── logs/              # Training logs and outputs (created at run time, not tracked)
 ```
 
 ## How to run

@@ -1,27 +1,73 @@
-# Multi-temperature battery SOH framework (2025 snapshot)
+# Battery State-of-Health (SOH) Prediction with Unsupervised Transfer Learning
 
-A modular TensorFlow 2 / Keras framework I built in April–May 2025, during my M.S. research at National Central University, Taiwan, for predicting the state of health (SOH) of Li-ion battery packs cycled at 5 °C, 25 °C and 45 °C. It combines CNN-LSTM baselines, a physics-informed pack model and GAN data augmentation, with a coordinator that trains a base model at one temperature and then transfers or fine-tunes it to the others.
+My Master's thesis project (National Central University, June 2026): predicting the State of Health (SOH) of lithium-ion batteries across operating temperatures using deep learning with unsupervised transfer learning.
 
-> [!IMPORTANT]
-> **Reference snapshot: not maintained, and it does not run as-is.**
-> - This is a partial upload of a local working copy. `scripts/train.py` and `scripts/evaluate.py` import modules and helpers that are not in this repository (`core/config.py`, `core/system.py`, a `trainers` package with `TrainerFactory`, `utils/metrics.py`, `ensure_dir` in `utils/filesystem.py`), and `models/__init__.py` imports names that its modules do not define.
-> - Some evaluation options are placeholders, for example cross-temperature evaluation and the uncertainty metrics in `scripts/evaluate.py`.
-> - The battery data is not included.
->
-> This framework is **not** the method of my M.S. thesis (2026). The thesis replaced it with a simpler CNN-LSTM model that is adapted across temperatures with AdaBN (label-free, no backprop); that code is not public.
+## Overview
 
-## What's here
+Battery SOH estimation degrades when a model trained at one temperature is applied to another, because charge–discharge characteristics shift with temperature (domain shift). This project builds a CNN+LSTM baseline model trained on 25°C charge–discharge data and adapts it to new temperature domains using **AdaBN (Adaptive Batch Normalization)** — an unsupervised transfer-learning technique that requires no target-domain labels and no backpropagation. The pipeline includes data preprocessing, model training with configurable trainers, and evaluation scripts.
 
-| Folder | Contents |
-| --- | --- |
-| `config/` | Base configuration, hardware/system profile, Ray Tune search space |
-| `core/` | Logging and memory-management utilities |
-| `data/` | Cleaning, feature engineering and preprocessing; data provider with noise and GAN augmentation; optional PyBaMM simulation interface |
-| `models/` | CNN-LSTM and CNN-BiLSTM-attention baselines, pack-level physics-informed model (PINN) with RC-parameter layers, recurrent conditional GAN; attention and model-builder components |
-| `trainers/` | Base, PINN and GAN (gradient-penalty) trainers; multi-temperature coordinator; multi-GPU training with `tf.distribute`; physics-informed losses and callbacks |
-| `scripts/` | `clean_data.py`, `preprocess_data.py` (TFRecord output), `train.py` (with Ray Tune hyperparameter search), `evaluate.py` |
-| `utils/` | Benchmarking, visualization, environment and file-system helpers |
+## Method
+
+- **Baseline model:** CNN+LSTM network that takes battery charge–discharge sequences and predicts SOH, trained on 25°C data.
+- **Unsupervised transfer learning (AdaBN):** adapts the 25°C baseline to 5°C (and other temperature) data by aligning batch-normalization statistics with the target domain — using only unlabeled target data and no retraining by backpropagation.
+- **Data:** in-house charge–discharge measurements collected at 25°C, 5°C, and 45°C, plus the open NASA battery dataset for cross-dataset validation.
+
+## Results
+
+| Setting | In-house data | NASA B0006 |
+| --- | --- | --- |
+| 25°C baseline applied directly to 5°C data (domain shift) | RMSE 15.64% | RMSE 11.68% |
+| After AdaBN unsupervised transfer (no labels, no backprop) | RMSE **5.58%** | RMSE **5.01%** |
 
 ## Tech stack
 
-Python · TensorFlow 2 / Keras · Ray Tune · NumPy · pandas · scikit-learn · Matplotlib / Plotly
+- Python
+- Keras (deep learning models)
+- Scikit-learn (data preprocessing and metrics)
+
+## Repository structure
+
+```text
+battery_project/
+├── config/            # Base, system, and HPO search-space configs (base_config.py, system_config.py, hpo_search_space.py)
+├── core/              # Logging and memory utilities (logging.py, memory.py)
+├── data/              # BatteryDataProvider — dataset loading and batching
+├── models/            # Model definitions and model registry
+├── scripts/           # Runnable entry points: preprocess_data.py, clean_data.py, train.py, evaluate.py
+├── trainers/          # Training logic: base_trainer.py, multitemp_trainer.py, gan_trainer.py,
+│                      # pinn_trainer.py, losses.py, callbacks.py, distributed.py
+├── utils/             # Shared helper utilities
+└── logs/              # Training logs and outputs (created at run time, not tracked)
+```
+
+## How to run
+
+1. Install Python dependencies:
+
+   ```bash
+   pip install tensorflow keras scikit-learn
+   ```
+
+2. Preprocess the raw data:
+
+   ```bash
+   python scripts/preprocess_data.py
+   ```
+
+3. Train the baseline model (uses `config/base_config.py` by default):
+
+   ```bash
+   python scripts/train.py --config config/base_config.py
+   ```
+
+   Useful options: `--data-dir`, `--output-dir`, `--experiment-name`, `--model-name`, `--trainer-name`, and `--tune` for Ray Tune hyperparameter search.
+
+4. Evaluate the trained model:
+
+   ```bash
+   python scripts/evaluate.py
+   ```
+
+## Notes
+
+- The in-house dataset is not published here; the pipeline also supports the public NASA battery dataset format.

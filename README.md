@@ -1,5 +1,7 @@
 # Battery State-of-Health (SOH) Prediction with Unsupervised Transfer Learning
 
+English ｜ [繁體中文](README.zh-TW.md)
+
 My Master's thesis project (National Central University, June 2026): predicting the State of Health (SOH) of lithium-ion batteries across operating temperatures using deep learning with unsupervised transfer learning.
 
 ## Overview

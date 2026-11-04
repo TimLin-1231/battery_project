@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 import tensorflow as tf
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -131,8 +132,8 @@ def train_function_for_tune(tune_hpo_config: Dict[str, Any], base_config: Dict, 
 
     log_dir = os.path.join(trial_dir, "logs")
     weights_dir = os.path.join(trial_dir, "weights")
-    ensure_dir(log_dir)
-    ensure_dir(weights_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(weights_dir, exist_ok=True)
 
     # Update config paths for this trial
     trial_config_dict['core']['log_dir'] = log_dir
@@ -280,7 +281,7 @@ def main(args: argparse.Namespace):
 
         # Setup logging for the main HPO process (driver)
         setup_logging(log_dir=log_dir_main, level=args.log_level, filename="hpo_driver.log")
-        ensure_dir(log_dir_main)
+        os.makedirs(log_dir_main, exist_ok=True)
         logger.info("=" * 50)
         logger.info("Starting Hyperparameter Optimization with Ray Tune...")
         logger.info("=" * 50)
@@ -340,7 +341,7 @@ def main(args: argparse.Namespace):
 
         # Define where Ray Tune stores its results locally
         local_dir = os.path.join(output_dir, "ray_tune_results")
-        ensure_dir(local_dir)
+        os.makedirs(local_dir, exist_ok=True)
 
         # Run the Tune experiment
         logger.info(f"Starting tune.run with {args.num_hpo_trials} trials...")
@@ -399,8 +400,8 @@ def main(args: argparse.Namespace):
     # --- Normal or Fine-tuning Execution Path ---
     else:
         # Setup logging, system, hardware adapter for a single run
-        ensure_dir(log_dir_main)
-        ensure_dir(weights_dir_main)
+        os.makedirs(log_dir_main, exist_ok=True)
+        os.makedirs(weights_dir_main, exist_ok=True)
         setup_logging(log_dir=log_dir_main, level=args.log_level, filename="train.log")
         logger.info("=" * 50)
         run_mode = "Fine-tuning" if args.finetune_mode else "Training"

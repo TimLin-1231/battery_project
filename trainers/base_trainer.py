@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import tensorflow as tf
+from tqdm.auto import tqdm
 from tensorflow.keras.optimizers import Adam # Default optimizer
 
 # --- Custom Modules ---

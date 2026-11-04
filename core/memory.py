@@ -31,13 +31,18 @@ from enum import IntEnum
 import json
 from pathlib import Path
 
+import tensorflow as tf  # needed at import time by the @tf.function decorators below
+
 # --- Type Definitions ---
 T = TypeVar('T')
 GpuInfoDict = Dict[str, Union[str, float, int]]
 MemorySnapshotDict = Dict[str, Any]
 
 # --- Lazy Import ---
-_IMPORTS: Dict[str, Any] = {'tf': None, 'psutil': None, 'GPUtil': None, 'pynvml': None}
+# Filled on first use. A module that failed to import is cached as None.
+# (Pre-filling the keys with None made `module_name not in _IMPORTS` always False,
+# so nothing was ever imported and every lookup returned None.)
+_IMPORTS: Dict[str, Any] = {}
 
 def _lazy_import(module_name: str) -> Any:
     """Lazy imports dependency modules."""

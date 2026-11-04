@@ -27,6 +27,11 @@ except ImportError: # pragma: no cover
     logger = logging.getLogger("models.components.rcparams")
     if not logger.handlers: logger.addHandler(logging.StreamHandler()); logger.setLevel(logging.INFO)
 
+try:
+    from config.base_config import config
+except ImportError: # pragma: no cover
+    config = {}
+
 # --- Base Class ---
 
 class RCParamsBase(tf.keras.layers.Layer):

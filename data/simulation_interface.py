@@ -1,7 +1,7 @@
 # battery_project/data/simulation_interface.py
 
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple, Union
 import time
 import os
 

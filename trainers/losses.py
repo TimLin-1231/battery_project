@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 import logging
 import os
-from typing import Dict, Optional, Tuple, List
+from typing import Callable, Dict, Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 

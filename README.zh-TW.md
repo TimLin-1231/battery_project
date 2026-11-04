@@ -1,75 +1,61 @@
-# 以無監督遷移學習預測電池健康狀態（SOH）
+# 電池健康狀態（SOH）預測框架：碩論早期原型（2025）
 
 [English](README.md) ｜ 繁體中文
 
-我的碩士論文專案（國立中央大學，2026 年 6 月）：以深度學習結合無監督遷移學習，預測鋰離子電池在不同操作溫度下的健康狀態（State of Health，SOH）。
+> **狀態：已封存的原型，目前無法直接執行。**
+> 這是我在國立中央大學念碩士、論文研究初期（約 2025 年 4 月）寫的實驗框架，用來嘗試以 GAN 生成資料、物理資訊模型，以及跨溫度微調，來預測鋰離子電池組的健康狀態（State of Health，SOH）。
+> **這裡不是產生碩論結果的程式碼。** 論文最終的方法（CNN-LSTM + AdaBN）是之後在另一份未公開的程式碼中完成的，本 repo 裡沒有任何 AdaBN 的程式。
 
-## 概述
+## 內容
 
-在某個溫度下訓練的模型，拿到另一個溫度使用時，SOH 的估計準確度會下降，因為充放電特性會隨溫度改變（領域偏移，domain shift）。本專案以 25°C 的充放電資料訓練 CNN+LSTM 基準模型，再用 **AdaBN（自適應批次正規化，Adaptive Batch Normalization）** 把模型調整到新的溫度領域。AdaBN 是一種無監督遷移學習方法，不需要目標領域的標籤，也不需要反向傳播。整個流程包含資料前處理、使用可設定訓練器的模型訓練，以及評估腳本。
+**資料流程**
+- 清理電池管理系統（BMS）的原始紀錄：修正時間戳記、單位轉換、處理異常值（`scripts/clean_data.py`、`data/cleaning.py`）。
+- 前處理，以及留一法交叉驗證（LOOCV）的資料切分（`scripts/preprocess_data.py`、`data/preprocessing.py`）。
+- 健康特徵萃取：容量–溫度變化、庫倫效率、電池組直流內阻、電壓曲線統計量、溫度變化（`data/feature_engineering.py`）。
+- 含資料擴增的資料載入器（`data/data_provider.py`），以及可選用的 PyBaMM 模擬介面（`data/simulation_interface.py`）。
 
-## 方法
+**模型**（`models/`）
+- 基準模型：CNN-LSTM，以及加上注意力機制的 CNN-BiLSTM。
+- 遞迴條件式 GAN（RCGAN）的生成器與判別器，用來生成電池組的合成時間序列。
+- 以等效單電芯模型為基礎的電池組物理資訊神經網路（PINN），搭配 RC 參數層與注意力層。
 
-- **基準模型：** 以電池充放電序列為輸入、預測 SOH 的 CNN+LSTM 網路，使用 25°C 資料訓練。
-- **無監督遷移學習（AdaBN）：** 讓批次正規化的統計量對齊目標領域，把 25°C 的基準模型調整到 5°C（及其他溫度）的資料上；只使用沒有標籤的目標資料，也不需要用反向傳播重新訓練。
-- **資料：** 自行量測的 25°C、5°C、45°C 充放電資料，並以公開的 NASA 電池資料集做跨資料集驗證。
+**訓練**（`trainers/`）
+- 基礎訓練器、GAN 訓練器（含梯度懲罰）、使用物理資訊損失函數的 PINN 訓練器。
+- 多溫度協調器：先在一個溫度訓練基礎模型，再以微調（可設定凍結哪些層）遷移到其他溫度。
+- 分散式訓練（`tf.distribute`），以及 Ray Tune 的超參數搜尋空間（`config/hpo_search_space.py`）。
 
-## 結果
+**評估與工具**
+- `scripts/evaluate.py`：評估指標、SHAP 分析、不確定性量化。
+- 硬體偵測、記憶體管理、效能基準測試與繪圖工具（`config/system_config.py`、`core/`、`utils/`）。
 
-| 情境 | 自有資料 | NASA B0006 |
-| --- | --- | --- |
-| 25°C 基準模型直接用於 5°C 資料（領域偏移） | RMSE 15.64% | RMSE 11.68% |
-| 經 AdaBN 無監督遷移後（不需標籤、不需反向傳播） | RMSE **5.58%** | RMSE **5.01%** |
+## 已知問題
+
+以下是整個流程無法從頭跑到尾的原因：
+
+- `scripts/train.py`、`scripts/evaluate.py` 和 `trainers/gan_trainer.py` import 了本 repo 裡不存在的模組：`core.config`、`core.system`、`utils.metrics`。
+- import 的寫法不一致：有些模組要把 repo 根目錄加進路徑（`from config.base_config import ...`），有些要加它的上一層（`from battery_project.core ...`），有些用相對 import（`from ..models ...`），沒有一種啟動方式能同時滿足全部。
+- `scripts/clean_data.py` 從 `utils` import `setup_logger`，但 `utils` 裡沒有這個函式，所以專案自訂的 logging 那段永遠會退回標準 logging。同一個檔案裡 `DataCleaningPipeline.convert_units` 也定義了兩次，實際生效的是後面那個。
+- 沒有套件需求檔、沒有測試，也沒有資料；自行量測的資料沒有公開。
+
+## 與碩論的關係
+
+我的碩論（國立中央大學，2026）在沒有目標領域標籤的情況下，估計電池組在不同溫度下的 SOH：以 25 °C 資料訓練 CNN-LSTM 模型，再用 AdaBN 遷移到 5 °C、45 °C 及公開的 NASA PCoE 電芯。AdaBN 只用沒有標籤的目標資料重新估計 BatchNorm 的統計量，不需要反向傳播。舉例來說，5 °C 的 #8 電池組 RMSE 從 15.64% 降到 5.58%，NASA B0006 電芯從 11.68% 降到 5.01%。
+
+這些結果來自之後的那份程式碼，無法用本 repo 的程式重現。
 
 ## 使用技術
 
-- Python
-- Keras（深度學習模型）
-- Scikit-learn（資料前處理與評估指標）
+Python · TensorFlow/Keras · NumPy · pandas · SciPy · scikit-learn · Ray Tune · SHAP · PyBaMM（選用）· Matplotlib/Plotly
 
 ## 專案結構
 
 ```text
 battery_project/
-├── config/            # 基本、系統與超參數搜尋空間設定（base_config.py、system_config.py、hpo_search_space.py）
-├── core/              # 日誌與記憶體工具（logging.py、memory.py）
-├── data/              # BatteryDataProvider：資料集載入與分批
-├── models/            # 模型定義與模型註冊表
-├── scripts/           # 可直接執行的進入點：preprocess_data.py、clean_data.py、train.py、evaluate.py
-├── trainers/          # 訓練邏輯：base_trainer.py、multitemp_trainer.py、gan_trainer.py、
-│                      # pinn_trainer.py、losses.py、callbacks.py、distributed.py
-├── utils/             # 共用輔助工具
-└── logs/              # 訓練日誌與輸出（執行時產生，不納入版本控制）
+├── config/            # 基本設定、硬體偵測（system_config.py）、Ray Tune 搜尋空間
+├── core/              # logging 與記憶體管理
+├── data/              # 清理、前處理、特徵工程、資料載入器、PyBaMM 介面
+├── models/            # CNN-LSTM 基準模型、RCGAN、PINN，以及共用層（注意力、RC 參數）
+├── scripts/           # 執行入口：clean_data.py、preprocess_data.py、train.py、evaluate.py
+├── trainers/          # 基礎、GAN、PINN 與多溫度訓練器；損失函數；callbacks；分散式訓練
+└── utils/             # 效能測試、檔案系統、環境與視覺化工具
 ```
-
-## 執行方式
-
-1. 安裝 Python 套件：
-
-   ```bash
-   pip install tensorflow keras scikit-learn
-   ```
-
-2. 前處理原始資料：
-
-   ```bash
-   python scripts/preprocess_data.py
-   ```
-
-3. 訓練基準模型（預設使用 `config/base_config.py`）：
-
-   ```bash
-   python scripts/train.py --config config/base_config.py
-   ```
-
-   常用選項：`--data-dir`、`--output-dir`、`--experiment-name`、`--model-name`、`--trainer-name`，以及用 Ray Tune 做超參數搜尋的 `--tune`。
-
-4. 評估訓練好的模型：
-
-   ```bash
-   python scripts/evaluate.py
-   ```
-
-## 備註
-
-- 自有資料集不在此公開；這套流程也支援公開的 NASA 電池資料集格式。
